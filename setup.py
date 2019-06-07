@@ -9,6 +9,7 @@ def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 setup(
+	include_package_data=True,
 	name='WFC3_Back_Sub',
 	version='1.0',
 	description='WFC3 IR Grism Background Subtraction Module',
@@ -17,5 +18,6 @@ setup(
 	package_dir = {
         'WFC3_Back_Sub': 'WFC3_Back_Sub'},
     packages=['WFC3_Back_Sub',],
-    package_data={'WFC3_Back_Sub': ['data/*.fits']},
+    package_data={'': ['data/*.fits']
+    },
 )

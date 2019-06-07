@@ -6,11 +6,3 @@ WFC3_Back_Sub.egg-info/PKG-INFO
 WFC3_Back_Sub.egg-info/SOURCES.txt
 WFC3_Back_Sub.egg-info/dependency_links.txt
 WFC3_Back_Sub.egg-info/top_level.txt
-WFC3_Back_Sub/data/G102_HeI_clean.fits
-WFC3_Back_Sub/data/G102_Scatter_clean.fits
-WFC3_Back_Sub/data/G102_Zodi_CLN8_V7b_clean.fits
-WFC3_Back_Sub/data/G141_HeI_clean.fits
-WFC3_Back_Sub/data/G141_Scatter_clean.fits
-WFC3_Back_Sub/data/G141_Zodi_CLN8_V7_clean.fits
-WFC3_Back_Sub/data/uc72113oi_pfl_patched.fits
-WFC3_Back_Sub/data/uc721143i_pfl_patched.fits

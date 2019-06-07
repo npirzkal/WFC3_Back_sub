@@ -27,7 +27,7 @@ if not "CRDS_PATH" in os.environ.keys():
 
 # Point to the iref directory in the CRDS_PATH of iref is not already defined 
 if not "iref" in os.environ.keys():
-    os.environ["iref"] = "/Users/npirzkal/crds_cache/references/hst/iref/"
+    os.environ["iref"] = "$HOME/crds_cache/references/hst/iref/"
 os.environ["tref"] = os.path.join(module_path,"data/")
 
 #print("Will look for data in ",os.environ["tref"])
