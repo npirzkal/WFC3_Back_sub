@@ -606,7 +606,7 @@ def record_values(Zodi,HeIs,Scats):
                 fin["SCI"].header["Scat_{}".format(extver)] = (Scats[ima_file][extver],"Scat level estimated (e-)")
                 fin["SCI"].header["Zodi_{}".format(extver)] = (Zodi,"Zodi level estimated (e-)")
 
-                h = fits.open(ima_file)["SCI",nexts-extver+1].header
+                h = fits.open(ima_file)["SCI",extver].header
                 mean_time = h["ROUTTIME"] #-h["DELTATIM"]/2
                 fin["SCI"].header["MEANT_{}".format(extver)] = (mean_time,"Mean UT time of exposure JD")
 
