@@ -256,7 +256,7 @@ def get_mask(flt_name,kernel_fwhm=1.25,background_box=20,thr=0.05,npixels=100):
     return mask
 
 
-def create_msk(flt_name,kernel_fwhm=1.25,background_box=(1014//6,1),thr=0.05,npixels=100):  
+def create_msk(flt_name,kernel_fwhm=1.25,background_box=(1014//6,1),thr=0.05,npixels=100,seg_thr=1e-5):  
     """      
     This function will create a FITS files ipppssoot_msk.fits 
 
@@ -285,8 +285,8 @@ def create_msk(flt_name,kernel_fwhm=1.25,background_box=(1014//6,1),thr=0.05,npi
     kernel = Gaussian2DKernel(x_stddev=1)
     segm = segm*1.
     segm = convolve(segm, kernel)
-    segm[segm>1e-5] = 1.
-    segm[segm<=1e-5] = 0.
+    segm[segm>seg_thr] = 1.
+    segm[segm<=seg_thr] = 0.
     segm[DQ>0] = 1.
     
     msk_name = flt_name.split("_flt.fits")[0]+"_msk.fits"
@@ -610,7 +610,7 @@ def record_values(Zodi,HeIs,Scats):
                 mean_time = h["ROUTTIME"] #-h["DELTATIM"]/2
                 fin["SCI"].header["MEANT_{}".format(extver)] = (mean_time,"Mean UT time of exposure JD")
 
-def process_obs_ids(obs_ids,thr=0.05,plot=True):
+def process_obs_ids(obs_ids,thr=0.05,plot=True,seg_thr=1e-5):
     """
     Function to perform all the required steps to remove the time varying HeI and Scattered light component as well as the Zodi
     component from a group of WFC3 IR G102 or G141 RAW files.
@@ -632,7 +632,7 @@ def process_obs_ids(obs_ids,thr=0.05,plot=True):
 
     flt_names = [raw_to_flt(x) for x in raw_names]
 
-    [create_msk("{}_flt.fits".format(x),thr=thr) for x in obs_ids]
+    [create_msk("{}_flt.fits".format(x),thr=thr,seg_thr=seg_thr) for x in obs_ids]
 
     ima_names = ["{}_ima.fits".format(x) for x in obs_ids]
 
