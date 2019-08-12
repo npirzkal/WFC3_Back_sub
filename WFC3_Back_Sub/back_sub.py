@@ -33,17 +33,20 @@ os.environ["tref"] = os.path.join(module_path,"data/")
 #print("Will look for data in ",os.environ["tref"])
 
 # Define the G102 backgrounds and braod bad flat-field to use
+G102_zodi = fits.open(os.path.join(module_path,"data/G102_Zodi_CLN6_V8.fits"))[1].data 
+G102_HeI = fits.open(os.path.join(module_path,"data/G102_HeI_new_clean.fits"))[1].data 
+G102_Scatter = fits.open(os.path.join(module_path,"data/G102_Scatter_superclean.fits"))[1].data 
+
 G102_zodi = fits.open(os.path.join(module_path,"data/G102_Zodi_CLN6_V8_b_clean.fits"))[1].data 
-G102_HeI = fits.open(os.path.join(module_path,"data/G102_HeI_V8_clean.fits"))[1].data 
-G102_Scatter = fits.open(os.path.join(module_path,"data/G102_Scatter_V8_superclean.fits"))[1].data 
+# G102_HeI = fits.open(os.path.join(module_path,"data/G102_HeI_V8_clean.fits"))[1].data 
+# G102_Scatter = fits.open(os.path.join(module_path,"data/G102_Scatter_V8_superclean.fits"))[1].data 
 G102_FF = "tref$uc72113oi_pfl_patched.fits"
 
 # Define the G102 backgrounds and braod bad flat-field to use
-G141_zodi = fits.open(os.path.join(module_path,"data/G141_Zodi_CLN6_V8_b_clean.fits"))[1].data 
-G141_HeI = fits.open(os.path.join(module_path,"data/G141_HeI_V8_b_clean.fits"))[1].data 
-G141_Scatter = fits.open(os.path.join(module_path,"data/G141_Scatter_V8_b_superclean.fits"))[1].data 
+G141_zodi = fits.open(os.path.join(module_path,"data/G141_Zodi_CLN8_V7_clean.fits"))[1].data 
+G141_HeI = fits.open(os.path.join(module_path,"data/G141_HeI_superclean.fits"))[1].data 
+G141_Scatter = fits.open(os.path.join(module_path,"data/G141_Scatter_superclean.fits"))[1].data 
 G141_FF = "tref$uc721143i_pfl_patched.fits"
-
 
 def get_visits(pattern):
     """
@@ -256,7 +259,7 @@ def get_mask(flt_name,kernel_fwhm=1.25,background_box=20,thr=0.05,npixels=100):
     return mask
 
 
-def create_msk(flt_name,kernel_fwhm=1.25,background_box=(1014//6,1),thr=0.05,npixels=100,seg_thr=1e-5):  
+def create_msk(flt_name,kernel_fwhm=1.25,background_box=(1014//6,1),thr=0.05,npixels=100):  
     """      
     This function will create a FITS files ipppssoot_msk.fits 
 
@@ -285,8 +288,8 @@ def create_msk(flt_name,kernel_fwhm=1.25,background_box=(1014//6,1),thr=0.05,npi
     kernel = Gaussian2DKernel(x_stddev=1)
     segm = segm*1.
     segm = convolve(segm, kernel)
-    segm[segm>seg_thr] = 1.
-    segm[segm<=seg_thr] = 0.
+    segm[segm>1e-5] = 1.
+    segm[segm<=1e-5] = 0.
     segm[DQ>0] = 1.
     
     msk_name = flt_name.split("_flt.fits")[0]+"_msk.fits"
@@ -313,9 +316,7 @@ def Get_HeI_Zodi_Scatter_Levels(ima_names,border=0):
 
     """
     nimas = len(ima_names)
-    #nexts = [fits.open(ima_name)[-1].header["EXTVER"] for ima_name in ima_names] # We drop the last ext/1st read  
-    nexts = [fits.open(ima_name)[0].header["NSAMP"] for ima_name in ima_names] # We drop the last ext/1st read   
- 
+    nexts = [fits.open(ima_name)[-1].header["EXTVER"] for ima_name in ima_names] # We drop the last ext/1st read   
     filt = fits.open(ima_names[0])[0].header["FILTER"]
 
     if filt=="G102":         
@@ -368,7 +369,7 @@ def Get_HeI_Zodi_Scatter_Levels(ima_names,border=0):
 
     nflt = sum(nexts)
     npar = 2*nflt+1
-    print("We are solving for ",npar," values")
+    print("We are solving for ",npar," HeI values")
     
     v = np.zeros(npar,np.float)
     m = np.zeros([npar,npar],np.float)
@@ -536,7 +537,7 @@ def sub_Zodi(flt_name):
     print("Zodi, Scale",scale)
 
     fin["SCI"].data = fin["SCI"].data - scale*zodi
-    fin["SCI"].header["Zodi"] = (scale,"Zodi level subtracted (e-)")
+    fin["SCI"].header["Zodi"] = (scale,"Zodi level estimated (e-)")
     fin.close(output_verify="ignore")
 
 def diagnostic_plots(obs_ids):
@@ -578,39 +579,7 @@ def diagnostic_plots(obs_ids):
     plt.savefig(oname)
     return "{}_diag.png".format(obs_ids[0][0:6])
 
-def record_values(Zodi,HeIs,Scats):
-    """
-    Records the individual background values into the header of the final FLT file
-    NBACK : number of individual background estimates that were computed
-    MEANT_x: mean JD time of IMSET x when background values were estimated
-    HeI_x : HeI estimate subtracted from IMSET x
-    Scat_x : HeI estimate subtracted from IMSET x
-    Zodi_x : Zodi estimate for IMSET x
-    Zodi   : Actual Zodi subtracted
-    """
-    Zodi,HeIs,Scats
-
-    for ima_file in list(HeIs.keys()):
-        print(ima_file)
-        flt_name = "{}_flt.fits".format(ima_file.split("_ima.fits")[0])
-        print("Recording background info into {}".format(flt_name))
-        with fits.open(flt_name,mode="update") as fin:
-            nexts = fits.open(ima_file)[0].header["NSAMP"]
-            fin["SCI"].header["NBACK"] = (nexts,"Number of HeI, Scat, and Zodi values estimated")
-            for extver in list(HeIs[ima_file].keys()):
-                #print("IMSET:",extver,"subtracting",HeIs[f][extver])
-                #print("Before:",np.nanmedian(fin["SCI",extver].data[5:1014+5,5:1014+5] ))
-                #fin["SCI",extver].data[5:1014+5,5:1014+5] = fin["SCI",extver].data[5:1014+5,5:1014+5] - HeIs[f][extver]*HeI - Scats[f][extver]*Scatter 
-                #print("After:",np.nanmedian(fin["SCI",extver].data[5:1014+5,5:1014+5] ))
-                fin["SCI"].header["HeI_{}".format(extver)] = (HeIs[ima_file][extver],"HeI level subtracted (e-)")
-                fin["SCI"].header["Scat_{}".format(extver)] = (Scats[ima_file][extver],"Scat level estimated (e-)")
-                fin["SCI"].header["Zodi_{}".format(extver)] = (Zodi,"Zodi level estimated (e-)")
-
-                h = fits.open(ima_file)["SCI",extver].header
-                mean_time = h["ROUTTIME"] #-h["DELTATIM"]/2
-                fin["SCI"].header["MEANT_{}".format(extver)] = (mean_time,"Mean UT time of exposure JD")
-
-def process_obs_ids(obs_ids,thr=0.05,plot=True,seg_thr=1e-5):
+def process_obs_ids(obs_ids,thr=0.05,plot=True):
     """
     Function to perform all the required steps to remove the time varying HeI and Scattered light component as well as the Zodi
     component from a group of WFC3 IR G102 or G141 RAW files.
@@ -632,7 +601,7 @@ def process_obs_ids(obs_ids,thr=0.05,plot=True,seg_thr=1e-5):
 
     flt_names = [raw_to_flt(x) for x in raw_names]
 
-    [create_msk("{}_flt.fits".format(x),thr=thr,seg_thr=seg_thr) for x in obs_ids]
+    [create_msk("{}_flt.fits".format(x),thr=thr) for x in obs_ids]
 
     ima_names = ["{}_ima.fits".format(x) for x in obs_ids]
 
@@ -645,8 +614,6 @@ def process_obs_ids(obs_ids,thr=0.05,plot=True,seg_thr=1e-5):
     flt_names = [ima_to_flt(x) for x in ima_names]
 
     [sub_Zodi(x) for x in flt_names]
-
-    record_values(Zodi,HeIs,Scats)
 
     if plot:
         diagnostic_plots(obs_ids)
