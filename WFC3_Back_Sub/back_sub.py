@@ -33,20 +33,16 @@ os.environ["tref"] = os.path.join(module_path,"data/")
 #print("Will look for data in ",os.environ["tref"])
 
 # Define the G102 backgrounds and braod bad flat-field to use
-G102_zodi = fits.open(os.path.join(module_path,"data/G102_Zodi_CLN6_V8.fits"))[1].data 
-G102_HeI = fits.open(os.path.join(module_path,"data/G102_HeI_new_clean.fits"))[1].data 
-G102_Scatter = fits.open(os.path.join(module_path,"data/G102_Scatter_superclean.fits"))[1].data 
+G102_zodi = fits.open(os.path.join(module_path,"data/G102_Zodi_CLN6_V9_b_clean.fits"))[1].data 
+G102_HeI = fits.open(os.path.join(module_path,"data/G102_HeI_V9_b_clean.fits"))[1].data 
+G102_Scatter = fits.open(os.path.join(module_path,"data/G102_Scatter_V9_b_superclean.fits"))[1].data 
+G102_FF = "tref$uc72113oi_pfl_patched2.fits"
 
-G102_zodi = fits.open(os.path.join(module_path,"data/G102_Zodi_CLN6_V8_b_clean.fits"))[1].data 
-# G102_HeI = fits.open(os.path.join(module_path,"data/G102_HeI_V8_clean.fits"))[1].data 
-# G102_Scatter = fits.open(os.path.join(module_path,"data/G102_Scatter_V8_superclean.fits"))[1].data 
-G102_FF = "tref$uc72113oi_pfl_patched.fits"
-
-# Define the G102 backgrounds and braod bad flat-field to use
-G141_zodi = fits.open(os.path.join(module_path,"data/G141_Zodi_CLN8_V7_clean.fits"))[1].data 
-G141_HeI = fits.open(os.path.join(module_path,"data/G141_HeI_superclean.fits"))[1].data 
-G141_Scatter = fits.open(os.path.join(module_path,"data/G141_Scatter_superclean.fits"))[1].data 
-G141_FF = "tref$uc721143i_pfl_patched.fits"
+# Define the G141 backgrounds and braod bad flat-field to use
+G141_zodi = fits.open(os.path.join(module_path,"data/G141_Zodi_CLN6_V9_b.fits"))[1].data 
+G141_HeI = fits.open(os.path.join(module_path,"data/G141_HeI_V9_b_clean.fits"))[1].data 
+G141_Scatter = fits.open(os.path.join(module_path,"data/G141_Scatter_V9_b_superclean.fits"))[1].data 
+G141_FF = "tref$uc721143i_pfl_patched2.fits"
 
 def get_visits(pattern):
     """
