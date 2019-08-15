@@ -32,17 +32,19 @@ os.environ["tref"] = os.path.join(module_path,"data/")
 
 #print("Will look for data in ",os.environ["tref"])
 
-# Define the G102 backgrounds and braod bad flat-field to use
-G102_zodi = fits.open(os.path.join(module_path,"data/G102_Zodi_CLN6_V9_b_clean.fits"))[1].data 
-G102_HeI = fits.open(os.path.join(module_path,"data/G102_HeI_V9_b_clean.fits"))[1].data 
-G102_Scatter = fits.open(os.path.join(module_path,"data/G102_Scatter_V9_b_superclean.fits"))[1].data 
-G102_FF = "tref$uc72113oi_pfl_patched2.fits"
 
-# Define the G141 backgrounds and braod bad flat-field to use
-G141_zodi = fits.open(os.path.join(module_path,"data/G141_Zodi_CLN6_V9_b_clean.fits"))[1].data 
-G141_HeI = fits.open(os.path.join(module_path,"data/G141_HeI_V9_b_clean.fits"))[1].data 
-G141_Scatter = fits.open(os.path.join(module_path,"data/G141_Scatter_V9_b_superclean.fits"))[1].data 
-G141_FF = "tref$uc721143i_pfl_patched2.fits"
+# G102_zodi_file = os.path.join(module_path,"data/G102_Zodi_CLN6_V9_b_clean.fits")
+# G102_HeI_file = os.path.join(module_path,"data/G102_HeI_V9_b_clean.fits")
+# G102_Scatter_file = os.path.join(module_path,"data/G102_Scatter_V9_b_superclean.fits")
+
+
+def test(d):
+    return d
+    from skimage.restoration import (denoise_tv_chambolle, denoise_bilateral,
+                                 denoise_wavelet, estimate_sigma)
+    print("de-noising")
+    tt = denoise_tv_chambolle(d, weight=.5, multichannel=False)
+    return tt
 
 def get_visits(pattern):
     """
@@ -109,512 +111,538 @@ def get_data(obs_id):
     return raw_name
 
 
-def raw_to_flt(raw_name):
-    """
-    Function to run CALWF3 on a raw dataset. CRCORR is set to OMIT and FLATCORR is set to perform.
-    If available, crds is ran to download and updat the RAW file header to point to the latest calibration files.
-    The flat-field calibration file names are replaced with the ones included in this package and pointed to by
-    G102_FF and G141_FF.
 
-    Attributes
-    ----------
-    None
 
-    Output
-    ------
-    string containing the name of the FLT file that was created
 
-    """
 
-    CRCORR="OMIT"
-    FLATCORR="PERFORM"
 
-    obs_id = raw_name.split("_raw")[0]
-    
-    files = ["{}_flt.fits".format(obs_id),"{}_ima.fits".format(obs_id)]
-    for ff in files:
-        if os.path.isfile(ff):
-            os.unlink(ff)
 
-    print("Processing ",raw_name)
-    #res = os.system("crds bestrefs --files {}  --sync-references=1  --update-bestrefs ".format(raw_name))
-    #if res!=0:
-    #    print("CRDS did not run.")    
 
-    fin = fits.open(raw_name,mode="update")
-    fin[0].header["CRCORR"] = CRCORR
-    fin[0].header["FLATCORR"] = FLATCORR 
-    filt = fin[0].header["FILTER"]
+class Sub_Back():
+    def __init__(self,obs_ids,grism):
+        #ima_names = ["{}_ima.fits" for obs_id in obs_ids]
+        self.obs_ids = obs_ids
+        self.raw_names = ["{}_raw.fits" for obs_id in obs_ids]
+        self.thr = 0.05
+        self.plot = True
 
-    if filt=="G102":
-        fin[0].header["PFLTFILE"] = G102_FF 
-    elif filt=="G141":
-        fin[0].header["PFLTFILE"] = G141_FF
+        self.grism = grism
 
-    fin.close()
-    calwf3(raw_name)
-    flt_name = raw_name.split("_raw.fits")[0]+"_flt.fits"
+        self.G102_zodi_file = os.path.join(module_path,"data/G102_Zodi_CLN6_V9_b_clean.fits")
+        self.G102_HeI_file = os.path.join(os.path.join(module_path,"data/G102_HeI_V9_b_clean.fits"))
+        self.G102_Scatter_file = os.path.join(os.path.join(module_path,"data/G102_Scatter_V9_b_superclean.fits"))
+        self.G102_FF_file = "tref$uc72113oi_pfl_patched2.fits"
 
-    if not os.path.isfile(flt_name):
-        print("raw_to_flt() failed to generate ",flt_name)
-        sys.exit(1)
+        self.G141_zodi_file = os.path.join(module_path,"data/G141_Zodi_CLN6_V9_b_clean.fits")
+        self.G141_HeI_file = os.path.join(os.path.join(module_path,"data/G141_HeI_V9_b_clean.fits"))
+        self.G141_Scatter_file = os.path.join(os.path.join(module_path,"data/G141_Scatter_V9_b_superclean.fits"))
+        self.G141_FF_file = "tref$uc721143i_pfl_patched2.fits"
 
-    return flt_name
+        self.bit_mask = (1+2+4+8+16+32+64+128+256+512+1024+2048+4096)
 
-def ima_to_flt(ima_name):
-    """
-    Function to run CALWF3 on an exisiting IMA file. CRCORR is set to PERFORM.
+    def load_backgrounds(self):
+        if self.grism=="G102":
+            print("Loading ",self.G102_zodi_file)
+            self.zodi = fits.open(self.G102_zodi_file)[1].data
+            print("Loading ",self.G102_HeI_file)
+            self.HeI = fits.open(self.G102_HeI_file)[1].data
+            print("Loading ",self.G102_Scatter_file)
+            self.Scatter = fits.open(self.G102_Scatter_file)[1].data
+            self.FF_file = self.G102_FF_file
+        if self.grism=="G141":
+            self.zodi = fits.open(self.G141_zodi_file)[1].data
+            self.HeI = fits.open(self.G141_HeI_file)[1].data
+            self.Scatter = fits.open(self.G141_Scatter_file)[1].data
+            self.FF_file = self.G141_FF_file
 
-    Attributes
-    ----------
-    ima_name string containing the name of the IMA file to process
+    def process_obs_ids(self):
+        """
+        Function to perform all the required steps to remove the time varying HeI and Scattered light component as well as the Zodi
+        component from a group of WFC3 IR G102 or G141 RAW files.
+        This runs CALWF3 on each input RAW files, create a mask MSK file, estimates the HeI and Scattered light levels during the course
+        of each observations and removes those contributions, runs CALWF3 on the result to produce an FLT file and, finally, estimates and
+        remove the Zodi light from the final FLT file to generate a set of background subtracted FLT files.
+        """
 
-    Output
-    ------
-    string containing the name of the FLT file that has been created
-    """
-    import wfc3tools
-    from wfc3tools import wf3ir
+        self.load_backgrounds()
 
-    CRCORR="PERFORM"
-    
-    fin = fits.open(ima_name,mode="update")
-    fin[0].header["CRCORR"] = CRCORR
-    fin.close()
+        raw_names = ["{}_raw.fits".format(x) for x in self.obs_ids]
 
-    obs_id = ima_name.split("_ima.fits")[0]
-    flt_name = "%s_flt.fits" % (obs_id)
-    if os.path.isfile(flt_name):
-        os.unlink(flt_name)
-    tmp_name = "%s_ima_ima.fits" % (obs_id)
-    if os.path.isfile(tmp_name):
-        os.unlink(tmp_name)
-    tmp_name = "%s_ima_flt.fits" % (obs_id)
-    if os.path.isfile(tmp_name):
-        os.unlink(tmp_name)
+        flt_names = [self.raw_to_flt(x) for x in raw_names]
 
-    wf3ir(ima_name)
-    
-    shutil.move(tmp_name,flt_name)
-    tmp_name = "%s_ima_ima.fits" % (obs_id)
-    if os.path.isfile(tmp_name):
-        os.unlink(tmp_name)
+        [self.create_msk("{}_flt.fits".format(x),thr=self.thr) for x in self.obs_ids]
+        self.Get_HeI_Zodi_Scatter_Levels()
+        self.sub_HeI_Scat()
+        self.flt_names = [self.ima_to_flt("{}_ima.fits".format(x)) for x in self.obs_ids]
+        [self.sub_Zodi(x) for x in self.flt_names]
+
+        # Second pass
+        # [self.create_msk("{}_flt.fits".format(x),thr=self.thr) for x in self.obs_ids]
+        # flt_names = [self.raw_to_flt(x) for x in raw_names]
+        # self.Get_HeI_Zodi_Scatter_Levels()
+        # self.sub_HeI_Scat()
+        # self.flt_names = [self.ima_to_flt("{}_ima.fits".format(x)) for x in self.obs_ids]
+
+        # [self.sub_Zodi(x) for x in self.flt_names]
+
+        if self.plot:
+            self.diagnostic_plots()
+
+        return flt_names
+
+    def raw_to_flt(self,raw_name):
+        """
+        Function to run CALWF3 on a raw dataset. CRCORR is set to OMIT and FLATCORR is set to perform.
+        If available, crds is ran to download and updat the RAW file header to point to the latest calibration files.
+        The flat-field calibration file names are replaced with the ones included in this package and pointed to by
+        G102_FF and G141_FF.
+
+        Attributes
+        ----------
+        None
+
+        Output
+        ------
+        string containing the name of the FLT file that was created
+
+        """
+
+        CRCORR="OMIT"
+        FLATCORR="PERFORM"
+
+        obs_id = raw_name.split("_raw")[0]
         
-    tmp = fits.open(flt_name)[1].data
+        files = ["{}_flt.fits".format(obs_id),"{}_ima.fits".format(obs_id)]
+        for ff in files:
+            if os.path.isfile(ff):
+                os.unlink(ff)
 
-    if not os.path.isfile(flt_name):
-        print("raw_to_flt() failed to generate ",flt_name)
-        sys.exit(1)
+        print("Processing ",raw_name)
+        #res = os.system("crds bestrefs --files {}  --sync-references=1  --update-bestrefs ".format(raw_name))
+        #if res!=0:
+        #    print("CRDS did not run.")    
 
-    return flt_name
-
-def get_mask(flt_name,kernel_fwhm=1.25,background_box=20,thr=0.05,npixels=100):
-    """
-    Function to create a mask (set to 0 for no detection and 1 for detection) appropriate to mask WFC3 slitless data. 
-    Attributes
-    ----------
-    flt_name string containing the name of the FLT name to create a mask for
-    kernel_fwhm Float The size of the detection kernel (default = 1.25 pixel)
-    background_box Int The saie fo the background box when estimating the background (default = 20 pixels) 
-    thr Float Threshold above noise to detect signal (default = 0.25)
-    npixels Int number of pixels for a spectrum to be detected (default = 15)    
-
-    Output
-    ------
-    A numpy array containing the mask
-    """
-    h = fits.open(flt_name)[0].header
-    filt = h["FILTER"]
-
-    fin = fits.open(flt_name)
-    image = fin["SCI"].data
-    err = fin["ERR"].data
-
-    dq = fin["DQ"].data
-    bit_mask = bit_mask = 32+8+4
-    dq = np.bitwise_and(dq,np.zeros(np.shape(dq),np.int16)+ bit_mask)
-    
-    g = Gaussian1D(mean=0.,stddev=kernel_fwhm/2.35)
-    x = np.arange(16.)-8
-    a = g(x)
-    kernel = np.tile(a,(16*int(kernel_fwhm+1),1)).T
-    kernel = kernel/np.sum(kernel)
-
-    b = Background2D(image,background_box)
-
-    image = image-b.background
-    threshold = thr * err
-    
-    image[dq>0] = 0. #np.nan
-    
-    mask = detect_sources(image, threshold, npixels=npixels,filter_kernel=kernel).data
-    
-    ok = mask == 0.
-    mask[~ok] = 1.
-    
-    return mask
-
-
-def create_msk(flt_name,kernel_fwhm=1.25,background_box=(1014//6,1),thr=0.05,npixels=100):  
-    """      
-    This function will create a FITS files ipppssoot_msk.fits 
-
-    Attributes
-    ----------
-    flt_name string containing the name of the FLT name to create a mask for
-    kernel_fwhm Float The size of the detection kernel (default = 1.25 pixel)
-    background_box Int The saie fo the background box when estimating the background (default = (1014//6,1) pixels) 
-    thr Float Threshold above noise to detect signal (default = 0.05)
-    npixels Int number of pixels for a spectrum to be detected (default = 100)    
-
-    Output
-    ______
-        String containing the name of the MSK file
-    """
-
-    segm = get_mask(flt_name,kernel_fwhm=kernel_fwhm,background_box=background_box,thr=thr,npixels=npixels) 
-    
-    dq3 = fits.open(flt_name)["DQ"].data.astype(int)
-
-    dq3 = dq3.astype(int)
-    bit_mask = (4+8+16+32+128+256+1024+2048)
-
-    DQ = np.bitwise_and(dq3,np.zeros(np.shape(dq3),np.int)+ bit_mask)
-
-    kernel = Gaussian2DKernel(x_stddev=1)
-    segm = segm*1.
-    segm = convolve(segm, kernel)
-    segm[segm>1e-5] = 1.
-    segm[segm<=1e-5] = 0.
-    segm[DQ>0] = 1.
-    
-    msk_name = flt_name.split("_flt.fits")[0]+"_msk.fits"
-    fits.writeto(msk_name,segm,overwrite=True)
-    return segm
-
-def Get_HeI_Zodi_Scatter_Levels(ima_names,border=0):
-    """
-    Function to estimate the Zodi, HeI, and Scatter levels in each IMSET of an IMA file.
-    A set of IMA files can be processed at once and the Zodi level is assumed to be identical in all of them. The HeI and Scatter
-    levels are allowed to vary freely. See code by R. Ryan in Appendix of ISR WFC3 2015-17 for details.
-
-    Atributes
-    ---------
-    ima_names List A list containing the names of IMA files to process together. 
-    border int The number of collumns to avoid on the left and right hand side of the detector (default = 0)
-
-    Output
-    ------
-    
-    Zodi Float The value of Zodi scale
-    HeIs Dic A dictionary containing all the HeI scale value for each  IMSET in each IMA file
-    Scats Dic A dictionary containing all the Scatter scale value for each  IMSET in each IMA file
-
-    """
-    nimas = len(ima_names)
-    nexts = [fits.open(ima_name)[-1].header["EXTVER"] for ima_name in ima_names] # We drop the last ext/1st read   
-    filt = fits.open(ima_names[0])[0].header["FILTER"]
-
-    if filt=="G102":         
-        zodi = G102_zodi
-        HeI = G102_HeI 
-        Scatter = G102_Scatter 
-
-    if filt=="G141":         
-        zodi = G141_zodi
-        HeI = G141_HeI 
-        Scatter = G141_Scatter
-
-    bit_mask = (4+8+16+32+128+256+1024+2048)
-    
-    data0s = []
-    err0s = []
-    samp0s = []
-    dq0s = []
-    dqm0s = []
-    masks = []
-    
-    for j in range(nimas):
-        obs_id = ima_names[j][0:9]
-        mask = fits.open("{}_msk.fits".format(obs_id))[0].data
-        masks.append([mask for ext in range(1,nexts[j])])
-        data0s.append([fits.open(ima_names[j])["SCI",ext].data[5:1014+5,5:1014+5]*1 for ext in range(1,nexts[j])])
-        err0s.append([fits.open(ima_names[j])["ERR",ext].data[5:1014+5,5:1014+5]*1 for ext in range(1,nexts[j])])
-        dq0s.append([fits.open(ima_names[j])["DQ",ext].data[5:1014+5,5:1014+5]*1 for ext in range(1,nexts[j])])
-
-    dqm0s = [[np.bitwise_and(dq0,np.zeros(np.shape(dq0),np.int16)+ bit_mask) for dq0 in dq0s[j]] for j in range(nimas)]
-
-    ok = (np.isfinite(zodi)) & (np.isfinite(HeI)) & (np.isfinite(Scatter))
-    zodi[~ok] = 0.
-    HeI[~ok] = 0.
-    Scatter[~ok] = 0.
-
-
-    # Setting up image weights
-    whts = []
-    for j in range(len(ima_names)):
-        whts_j = []
-        for i in range(len(err0s[j])):
-            err = err0s[j][i]
-            err[err<=1e-10] = 1e-10
-            w = 1./err**2
-            w[~ok] = 0.
-            whts_j.append(w)
-        whts.append(whts_j)
-        
-
-    nflt = sum(nexts)
-    npar = 2*nflt+1
-    print("We are solving for ",npar," HeI values")
-    
-    v = np.zeros(npar,np.float)
-    m = np.zeros([npar,npar],np.float)
-    
-    ii = -1
-    for j in range(len(ima_names)):
-        whts[j] = np.array(whts[j])
-        data0s[j] = np.array(data0s[j])
-        masks[j] = np.array(masks[j])
-        dqm0s[j] = np.array(dqm0s[j])
-
-
-        whts[j][~np.isfinite(data0s[j])] = 0.
-        data0s[j][~np.isfinite(data0s[j])] = 0.
-        whts[j][masks[j]>0] = 0.
-        whts[j][dqm0s[j]!=0] = 0.
-        
-        for i in range(len(data0s[j])):
-            ii = ii + 1
-            print("name:",ima_names[j],"imset:",i+1,ii)
-            
-            img = data0s[j][i]
-            wht = whts[j][i]
-            
-            if border>0:
-                wht[0:border] = 0.
-                wht[-border:0] = 0.
-                
-
-            # Populate up matrix and vector
-            v[ii] = np.sum(wht*data0s[j][i]*HeI)
-            v[-1] += np.sum(wht*data0s[j][i]*zodi)
-
-            m[ii,ii] = np.sum(wht*HeI*HeI)
-            m[ii,-1] = np.sum(wht*HeI*zodi)
-            m[-1,ii] = m[ii,-1]
-            m[-1,-1] += np.sum(wht*zodi*zodi)
-
-            v[ii+nflt] = np.sum(wht*data0s[j][i]*Scatter)
-            
-            m[ii+nflt,ii+nflt] = np.sum(wht*Scatter*Scatter)
-        
-            m[ii,ii+nflt] = np.sum(wht*HeI*Scatter)
-            
-            m[ii+nflt,-1] = np.sum(wht*zodi*Scatter)
-            
-            m[ii+nflt,ii] = m[ii,ii+nflt]
-            
-            m[-1,ii+nflt] = m[ii+nflt,-1]
-   
-    
-    res = optimize.lsq_linear(m,v)
-    x = res.x
-    
-    Zodi = x[-1]
-    HeIs = {}
-    Scats = {}
-    ii = -1
-    for j in range(len(data0s)):
-        HeIs[ima_names[j]] = {}
-        Scats[ima_names[j]] = {}
-        for i in range(len(data0s[j])):
-            ii = ii + 1
-            print("%s %d Zodi: %3.3f  He: %3.3f S: %3.3f" % (ima_names[j],i,x[-1],x[ii],x[ii+nflt]))
-
-            HeIs[ima_names[j]][i+1] = x[ii]
-            Scats[ima_names[j]][i+1] = x[ii+nflt]
-
-    return Zodi,HeIs,Scats
-
-def sub_HeI_Scat(HeIs,Scats):
-    """
-    Function to subtract the appropriately scaled HeI and Scatter light models from each of the IMSET of the IMA files 
-    included in the HeIs and Scats dictionaries. Header keywords are populated to reflect the amount of HeI and Scattered light
-    subtracted. Function will fail to run a second time on a dataset.
-
-    Attributes
-    ----------
-    HeIs Dic A dictionary containing all the HeI scale value for each  IMSET in each IMA file (from Get_HeI_Zodi_Scatter_Levels())
-    Scats Dic A dictionary containing all the Scatter scale value for each  IMSET in each IMA file (from Get_HeI_Zodi_Scatter_Levels())
-
-    Output
-    ------
-    None
-    """
-
-    #iref = os.environ['iref']
-
-    for f in HeIs.keys():
-        print("Updating ",f)
-        fin = fits.open(f,mode="update")
-        
+        fin = fits.open(raw_name,mode="update")
+        fin[0].header["CRCORR"] = CRCORR
+        fin[0].header["FLATCORR"] = FLATCORR 
         filt = fin[0].header["FILTER"]
 
-        if filt=="G102":         
-            zodi = G102_zodi
-            HeI = G102_HeI 
-            Scatter = G102_Scatter 
-
-        if filt=="G141":         
-            zodi = G141_zodi
-            HeI = G141_HeI 
-            Scatter = G141_Scatter
-
-        for extver in HeIs[f].keys():
-            print("EXTVER:",extver)
-            try:
-                val = fin["SCI",extver].header["HeI"] # testing
-                print("HeI found in ",f,"Aborting..")
-                continue
-            except:
-                pass
+        fin[0].header["PFLTFILE"] = self.FF_file
     
-            print("IMSET:",extver,"subtracting",HeIs[f][extver])
-            print("Before:",np.nanmedian(fin["SCI",extver].data[5:1014+5,5:1014+5] ))
-            fin["SCI",extver].data[5:1014+5,5:1014+5] = fin["SCI",extver].data[5:1014+5,5:1014+5] - HeIs[f][extver]*HeI - Scats[f][extver]*Scatter 
-            print("After:",np.nanmedian(fin["SCI",extver].data[5:1014+5,5:1014+5] ))
-            fin["SCI",extver].header["HeI_{}".format(extver)] = (HeIs[f][extver],"HeI level subtracted (e-)")
-            fin["SCI",extver].header["Scat_{}".format(extver)] = (Scats[f][extver],"Scat level estimated (e-)")
 
         fin.close()
+        calwf3(raw_name)
+        flt_name = raw_name.split("_raw.fits")[0]+"_flt.fits"
 
-def sub_Zodi(flt_name):
-    """
-    Function to re-compute and subtract the Zodi component from an FLT file. A match MSK file is assumed to exist.
+        if not os.path.isfile(flt_name):
+            print("raw_to_flt() failed to generate ",flt_name)
+            sys.exit(1)
 
-    Attributes
-    ----------
-    flt_name String containing the name of the FLT file to process
+        return flt_name
 
-    Output
-    ------
-    None
+    def ima_to_flt(self,ima_name):
+        """
+        Function to run CALWF3 on an exisiting IMA file. CRCORR is set to PERFORM.
 
-    """
-    obs_id = os.path.split(flt_name)[-1][0:9]
-    fin = fits.open(flt_name,mode="update")
+        Attributes
+        ----------
+        ima_name string containing the name of the IMA file to process
 
-    try:
-        val = fin["SCI"].header["Zodi"] # testing
-        print("Subtracted Zodi level found in ",flt_name,"Aborting..")
-        return
-    except:
-        pass
+        Output
+        ------
+        string containing the name of the FLT file that has been created
+        """
+        import wfc3tools
+        from wfc3tools import wf3ir
 
-    if not os.path.isfile("{}_msk.fits".format(obs_id)):
-        print("sub_Zodi could not find the MSK file ","{}_msk.fits".format(obs_id))
-        sys.exit(1)
-
-    filt = fin[0].header["FILTER"]
-    
-    if filt=="G102":         
-        zodi = G102_zodi
+        CRCORR="PERFORM"
         
-    if filt=="G141":         
-        zodi = G141_zodi
+        fin = fits.open(ima_name,mode="update")
+        fin[0].header["CRCORR"] = CRCORR
+        fin.close()
+
+        obs_id = ima_name.split("_ima.fits")[0]
+        flt_name = "%s_flt.fits" % (obs_id)
+        if os.path.isfile(flt_name):
+            os.unlink(flt_name)
+        tmp_name = "%s_ima_ima.fits" % (obs_id)
+        if os.path.isfile(tmp_name):
+            os.unlink(tmp_name)
+        tmp_name = "%s_ima_flt.fits" % (obs_id)
+        if os.path.isfile(tmp_name):
+            os.unlink(tmp_name)
+
+        wf3ir(ima_name)
         
-    d = fin["SCI"].data
-    msk = fits.open("{}_msk.fits".format(obs_id))[0].data
-    ok = msk==0
+        shutil.move(tmp_name,flt_name)
+        tmp_name = "%s_ima_ima.fits" % (obs_id)
+        if os.path.isfile(tmp_name):
+            os.unlink(tmp_name)
+            
+        tmp = fits.open(flt_name)[1].data
 
-    tmp = d*1.
-    tmp[~ok] = np.nan
-    scale = np.nanmedian(tmp/zodi)
-    print("Zodi, Scale",scale)
+        if not os.path.isfile(flt_name):
+            print("raw_to_flt() failed to generate ",flt_name)
+            sys.exit(1)
 
-    fin["SCI"].data = fin["SCI"].data - scale*zodi
-    fin["SCI"].header["Zodi"] = (scale,"Zodi level estimated (e-)")
-    fin.close(output_verify="ignore")
+        return flt_name
 
-def diagnostic_plots(obs_ids):
-    """
-    Function to output diagnostic plots for each of the processed observations, plotting the median residuals in the
-    final background subtracted FLT files (after applying the detection mask).
-    Attributes
-    ----------
-    obs_ids List containing the IDs of the FLT files to process
 
-    Output
-    ------
-    Name of the plot file
-    """
-    from astropy.io import fits
-    import numpy as np
-    import scipy
-    import matplotlib.pyplot as plt
+    def create_msk(self,flt_name,kernel_fwhm=1.25,background_box=(1014//6,2),thr=0.05,npixels=80):  
+        """      
+        This function will create a FITS files ipppssoot_msk.fits 
 
-    plt.rcParams["figure.figsize"] = (10,2.5*len(obs_ids))
-    fig = plt.figure()
-    plt.clf()
-    for i,obs in enumerate(obs_ids):
-        plt.subplot(len(obs_ids),1,i+1)
-        f = "{}_flt.fits".format(obs)
-        d = fits.open(f)[1].data
-        f = "{}_msk.fits".format(obs)
-        m = fits.open(f)[0].data
-        ok = (m==0) & (np.isfinite(d))
-        dd = np.ravel(d[ok])
-        d[m>0]=np.nan
-        plt.plot(np.nanmedian(d,axis=0),label=obs)
-        plt.grid()
-        plt.ylabel("e-/s")
-        plt.xlabel("col")
-        plt.xlim(0,1014)
-        plt.legend()
-    oname = "{}_diag.png".format(obs_ids[0][0:6])
-    plt.savefig(oname)
-    return "{}_diag.png".format(obs_ids[0][0:6])
+        Attributes
+        ----------
+        flt_name string containing the name of the FLT name to create a mask for
+        kernel_fwhm Float The size of the detection kernel (default = 1.25 pixel)
+        background_box Int The saie fo the background box when estimating the background (default = (1014//6,1) pixels) 
+        thr Float Threshold above noise to detect signal (default = 0.05)
+        npixels Int number of pixels for a spectrum to be detected (default = 100)    
 
-def process_obs_ids(obs_ids,thr=0.05,plot=True):
-    """
-    Function to perform all the required steps to remove the time varying HeI and Scattered light component as well as the Zodi
-    component from a group of WFC3 IR G102 or G141 RAW files.
-    This runs CALWF3 on each input RAW files, create a mask MSK file, estimates the HeI and Scattered light levels during the course
-    of each observations and removes those contributions, runs CALWF3 on the result to produce an FLT file and, finally, estimates and
-    remove the Zodi light from the final FLT file to generate a set of background subtracted FLT files.
+        Output
+        ______
+            String containing the name of the MSK file
+        """
 
-    Attributes
-    ----------
-    obs_ids List containing the IDs of the RAW files to process
-    plot Boolean Whether to produce a diagnostic plot (pdf) (Default=True)
+        segm = self.get_mask(flt_name,kernel_fwhm=kernel_fwhm,background_box=background_box,thr=thr,npixels=npixels) 
+        
+        dq3 = fits.open(flt_name)["DQ"].data.astype(int)
 
-    Output
-    ------
-    List of background subtracted FLT files
+        dq3 = dq3.astype(int)
 
-    """
-    raw_names = ["{}_raw.fits".format(x) for x in obs_ids]
+        DQ = np.bitwise_and(dq3,np.zeros(np.shape(dq3),np.int)+ self.bit_mask)
 
-    flt_names = [raw_to_flt(x) for x in raw_names]
+        kernel = Gaussian2DKernel(x_stddev=1)
+        segm = segm*1.
+        segm = convolve(segm, kernel)
+        segm[segm>1e-5] = 1.
+        segm[segm<=1e-5] = 0.
+        segm[DQ>0] = 1.
+        
+        msk_name = flt_name.split("_flt.fits")[0]+"_msk.fits"
+        fits.writeto(msk_name,segm,overwrite=True)
+        return segm
 
-    [create_msk("{}_flt.fits".format(x),thr=thr) for x in obs_ids]
 
-    ima_names = ["{}_ima.fits".format(x) for x in obs_ids]
+    def get_mask(self,flt_name,kernel_fwhm=1.25,background_box=20,thr=0.05,npixels=100):
+        """
+        Function to create a mask (set to 0 for no detection and 1 for detection) appropriate to mask WFC3 slitless data. 
+        Attributes
+        ----------
+        flt_name string containing the name of the FLT name to create a mask for
+        kernel_fwhm Float The size of the detection kernel (default = 1.25 pixel)
+        background_box Int The saie fo the background box when estimating the background (default = 20 pixels) 
+        thr Float Threshold above noise to detect signal (default = 0.25)
+        npixels Int number of pixels for a spectrum to be detected (default = 15)    
 
-    Zodi,HeIs,Scats = Get_HeI_Zodi_Scatter_Levels(ima_names)
-    sub_HeI_Scat(HeIs,Scats)
+        Output
+        ------
+        A numpy array containing the mask
+        """
+        h = fits.open(flt_name)[0].header
+        filt = h["FILTER"]
 
-    for obs_id in obs_ids:
-        ima_to_flt("{}_ima.fits".format(obs_id))
+        fin = fits.open(flt_name)
+        image = fin["SCI"].data
+        err = fin["ERR"].data
 
-    flt_names = [ima_to_flt(x) for x in ima_names]
+        dq = fin["DQ"].data
+        dq = np.bitwise_and(dq,np.zeros(np.shape(dq),np.int16)+ self.bit_mask)
+        
+        g = Gaussian1D(mean=0.,stddev=kernel_fwhm/2.35)
+        x = np.arange(16.)-8
+        a = g(x)
+        kernel = np.tile(a,(16*int(kernel_fwhm+1),1)).T
+        kernel = kernel/np.sum(kernel)
 
-    [sub_Zodi(x) for x in flt_names]
+        b = Background2D(image,background_box)
 
-    if plot:
-        diagnostic_plots(obs_ids)
+        image = image-b.background
+        threshold = thr * err
+        
+        image[dq>0] = 0. #np.nan
+        
+        mask = detect_sources(image, threshold, npixels=npixels,filter_kernel=kernel).data
+        
+        ok = (mask == 0.) & (dq==0)
+        mask[~ok] = 1.
+        
+        return mask
 
-    return flt_names
+    def Get_HeI_Zodi_Scatter_Levels(self,border=0):
+        """
+        Function to estimate the Zodi, HeI, and Scatter levels in each IMSET of an IMA file.
+        A set of IMA files can be processed at once and the Zodi level is assumed to be identical in all of them. The HeI and Scatter
+        levels are allowed to vary freely. See code by R. Ryan in Appendix of ISR WFC3 2015-17 for details.
+
+        Atributes
+        ---------
+        ima_names List A list containing the names of IMA files to process together. 
+        border int The number of collumns to avoid on the left and right hand side of the detector (default = 0)
+
+        Output
+        ------
+        
+        Zodi Float The value of Zodi scale
+        HeIs Dic A dictionary containing all the HeI scale value for each  IMSET in each IMA file
+        Scats Dic A dictionary containing all the Scatter scale value for each  IMSET in each IMA file
+
+        """
+
+        ima_names = ["{}_ima.fits".format(x) for x in self.obs_ids]
+
+        nimas = len(ima_names)
+        nexts = [fits.open(ima_name)[-1].header["EXTVER"] for ima_name in ima_names] # We drop the last ext/1st read   
+        filt = fits.open(ima_names[0])[0].header["FILTER"]
+
+        # Temp
+        zodi = self.zodi*1
+        HeI = self.HeI*1
+        Scatter = self.Scatter*1
+        
+        data0s = []
+        err0s = []
+        samp0s = []
+        dq0s = []
+        dqm0s = []
+        masks = []
+        
+        for j in range(nimas):
+            obs_id = ima_names[j][0:9]
+            mask = fits.open("{}_msk.fits".format(obs_id))[0].data
+            masks.append([mask for ext in range(1,nexts[j])])
+            data0s.append([test(fits.open(ima_names[j])["SCI",ext].data[5:1014+5,5:1014+5])*1 for ext in range(1,nexts[j])])
+            err0s.append([fits.open(ima_names[j])["ERR",ext].data[5:1014+5,5:1014+5]*1 for ext in range(1,nexts[j])])
+            dq0s.append([fits.open(ima_names[j])["DQ",ext].data[5:1014+5,5:1014+5]*1 for ext in range(1,nexts[j])])
+
+        dqm0s = [[np.bitwise_and(dq0,np.zeros(np.shape(dq0),np.int16)+ self.bit_mask) for dq0 in dq0s[j]] for j in range(nimas)]
+
+        ok = (np.isfinite(zodi)) & (np.isfinite(HeI)) & (np.isfinite(Scatter))
+        zodi[~ok] = 0.
+        HeI[~ok] = 0.
+        Scatter[~ok] = 0.
+
+
+        # Setting up image weights
+        whts = []
+        for j in range(len(ima_names)):
+            whts_j = []
+            for i in range(len(err0s[j])):
+                err = err0s[j][i]
+                err[err<=1e-6] = 1e-6
+                w = 1./err**2
+                w[~ok] = 0.
+                whts_j.append(w)
+            whts.append(whts_j)
+            
+
+        nflt = sum(nexts)
+        npar = 2*nflt+1
+        print("We are solving for ",npar," HeI values")
+        
+        v = np.zeros(npar,np.float)
+        m = np.zeros([npar,npar],np.float)
+        
+        ii = -1
+        for j in range(len(ima_names)):
+            whts[j] = np.array(whts[j])
+            data0s[j] = np.array(data0s[j])
+            masks[j] = np.array(masks[j])
+            dqm0s[j] = np.array(dqm0s[j])
+
+
+            whts[j][~np.isfinite(data0s[j])] = 0.
+            data0s[j][~np.isfinite(data0s[j])] = 0.
+            whts[j][masks[j]>0] = 0.
+            whts[j][dqm0s[j]!=0] = 0.
+            
+            for i in range(len(data0s[j])):
+                ii = ii + 1
+                print("name:",ima_names[j],"imset:",i+1,ii)
+                
+                img = data0s[j][i]
+                wht = whts[j][i]
+                
+                if border>0:
+                    wht[0:border] = 0.
+                    wht[-border:0] = 0.
+                    
+
+                # Populate up matrix and vector
+                v[ii] = np.sum(wht*data0s[j][i]*HeI)
+                v[-1] += np.sum(wht*data0s[j][i]*zodi)
+
+                m[ii,ii] = np.sum(wht*HeI*HeI)
+                m[ii,-1] = np.sum(wht*HeI*zodi)
+                m[-1,ii] = m[ii,-1]
+                m[-1,-1] += np.sum(wht*zodi*zodi)
+
+                v[ii+nflt] = np.sum(wht*data0s[j][i]*Scatter)
+                
+                m[ii+nflt,ii+nflt] = np.sum(wht*Scatter*Scatter)
+            
+                m[ii,ii+nflt] = np.sum(wht*HeI*Scatter)
+                
+                m[ii+nflt,-1] = np.sum(wht*zodi*Scatter)
+                
+                m[ii+nflt,ii] = m[ii,ii+nflt]
+                
+                m[-1,ii+nflt] = m[ii+nflt,-1]
+       
+        
+        res = optimize.lsq_linear(m,v)
+        x = res.x
+
+        # res = optimize.nnls(m,v)
+        # x = res[0]
+
+        
+        Zodi = x[-1]
+        HeIs = {}
+        Scats = {}
+        ii = -1
+        for j in range(len(data0s)):
+            HeIs[ima_names[j]] = {}
+            Scats[ima_names[j]] = {}
+            for i in range(len(data0s[j])):
+                ii = ii + 1
+                print("%s %d Zodi: %3.3f  He: %3.3f S: %3.3f" % (ima_names[j],i,x[-1],x[ii],x[ii+nflt]))
+
+                HeIs[ima_names[j]][i+1] = x[ii]
+                Scats[ima_names[j]][i+1] = x[ii+nflt]
+
+        self.Zodi = Zodi
+        self.HeIs = HeIs
+        self.Scats = Scats
+
+    def sub_HeI_Scat(self):
+        """
+        Function to subtract the appropriately scaled HeI and Scatter light models from each of the IMSET of the IMA files 
+        included in the HeIs and Scats dictionaries. Header keywords are populated to reflect the amount of HeI and Scattered light
+        subtracted. Function will fail to run a second time on a dataset.
+
+        """
+
+        for f in self.HeIs.keys():
+            print("Updating ",f)
+            fin = fits.open(f,mode="update")
+            
+            filt = fin[0].header["FILTER"]
+
+            zodi = self.zodi*1
+            HeI = self.HeI *1
+            Scatter = self.Scatter *1
+
+            for extver in self.HeIs[f].keys():
+                print("EXTVER:",extver)
+                try:
+                    val = fin["SCI",extver].header["HeI"] # testing
+                    print("HeI found in ",f,"Aborting..")
+                    continue
+                except:
+                    pass
+        
+                print("IMSET:",extver,"subtracting",self.HeIs[f][extver],self.Scats[f][extver])
+                print("Before:",np.nanmedian(fin["SCI",extver].data[5:1014+5,5:1014+5] ))
+                fin["SCI",extver].data[5:1014+5,5:1014+5] = fin["SCI",extver].data[5:1014+5,5:1014+5] - self.HeIs[f][extver]*HeI - self.Scats[f][extver]*Scatter 
+                print("After:",np.nanmedian(fin["SCI",extver].data[5:1014+5,5:1014+5] ))
+                fin["SCI",extver].header["HeI_{}".format(extver)] = (self.HeIs[f][extver],"HeI level subtracted (e-)")
+                fin["SCI",extver].header["Scat_{}".format(extver)] = (self.Scats[f][extver],"Scat level estimated (e-)")
+
+            fin.close()
+
+    def sub_Zodi(self,flt_name):
+        """
+        Function to re-compute and subtract the Zodi component from an FLT file. A match MSK file is assumed to exist.
+
+        Attributes
+        ----------
+        flt_name String containing the name of the FLT file to process
+
+        Output
+        ------
+        None
+
+        """
+
+        obs_id = os.path.split(flt_name)[-1][0:9]
+        fin = fits.open(flt_name,mode="update")
+
+        try:
+            val = fin["SCI"].header["Zodi"] # testing
+            print("Subtracted Zodi level found in ",flt_name,"Aborting..")
+            return
+        except:
+            pass
+
+        if not os.path.isfile("{}_msk.fits".format(obs_id)):
+            print("sub_Zodi could not find the MSK file ","{}_msk.fits".format(obs_id))
+            sys.exit(1)
+
+        filt = fin[0].header["FILTER"]
+        
+        zodi = self.zodi*1
+            
+        # d = fin["SCI"].data
+        # dq0 = fin["DQ"].data
+        # dq = np.bitwise_and(dq0,np.zeros(np.shape(dq0),np.int16)+ self.bit_mask) 
+
+        # msk = fits.open("{}_msk.fits".format(obs_id))[0].data
+        # ok = (msk==0) & (dq==0)
+
+        # tmp = test(d)*1.
+        # tmp[~ok] = np.nan
+        # scale = np.nanmedian(tmp/test(zodi))
+        print("Zodi, Scale",self.Zodi)
+
+        fin["SCI"].data = fin["SCI"].data - zodi*self.Zodi
+        fin["SCI"].header["Zodi"] = (self.Zodi,"Zodi level estimated (e-)")
+        fin.close(output_verify="ignore")
+
+    def diagnostic_plots(self):
+        """
+        Function to output diagnostic plots for each of the processed observations, plotting the median residuals in the
+        final background subtracted FLT files (after applying the detection mask).
+        Attributes
+        ----------
+        obs_ids List containing the IDs of the FLT files to process
+
+        Output
+        ------
+        Name of the plot file
+        """
+        from astropy.io import fits
+        import numpy as np
+        import scipy
+        import matplotlib.pyplot as plt
+
+        plt.rcParams["figure.figsize"] = (10,2.5*len(self.obs_ids))
+        fig = plt.figure()
+        plt.clf()
+        for i,obs in enumerate(self.obs_ids):
+            plt.subplot(len(self.obs_ids),1,i+1)
+            f = "{}_flt.fits".format(obs)
+            d = fits.open(f)[1].data
+            dq = fits.open(f)["DQ"].data
+            dq = np.bitwise_and(dq,np.zeros(np.shape(dq),np.int16)+ self.bit_mask)
+            f = "{}_msk.fits".format(obs)
+            m = fits.open(f)[0].data
+            ok = (m==0) & (np.isfinite(d))
+            dd = np.ravel(d[ok])
+            d[m>0]=np.nan
+            plt.plot(np.nanmedian(d,axis=0),label=obs)
+            plt.grid()
+            plt.ylabel("e-/s")
+            plt.xlabel("col")
+            plt.xlim(0,1014)
+            plt.ylim(-0.02,0.02)
+            plt.legend()
+        oname = "{}_diag.png".format(self.obs_ids[0][0:6])
+        plt.savefig(oname)
+        return "{}_diag.png".format(self.obs_ids[0][0:6])
+
+
 
 if __name__=="__main__":
     import argparse
