@@ -218,14 +218,16 @@ class Sub_Back():
                 os.unlink(ff)
 
         print("Processing ",raw_name)
-        #res = os.system("crds bestrefs --files {}  --sync-references=1  --update-bestrefs ".format(raw_name))
-        #if res!=0:
-        #    print("CRDS did not run.")    
+        res = os.system("crds bestrefs --files {}  --sync-references=1  --update-bestrefs ".format(raw_name))
+        if res!=0:
+            print("CRDS did not run.")    
 
         fin = fits.open(raw_name,mode="update")
         fin[0].header["CRCORR"] = CRCORR
         fin[0].header["FLATCORR"] = FLATCORR 
         filt = fin[0].header["FILTER"]
+
+        self.org_FF_file = fin[0].header["PFLTFILE"]
 
         fin[0].header["PFLTFILE"] = self.FF_file
     
@@ -629,7 +631,6 @@ class Sub_Back():
             f = "{}_msk.fits".format(obs)
             m = fits.open(f)[0].data
             ok = (m==0) & (np.isfinite(d))
-            dd = np.ravel(d[ok])
             d[m>0]=np.nan
             plt.plot(np.nanmedian(d,axis=0),label=obs)
             plt.grid()
@@ -642,7 +643,28 @@ class Sub_Back():
         plt.savefig(oname)
         return "{}_diag.png".format(self.obs_ids[0][0:6])
 
+    def restore_FF(self):
+        """
+        Function to undo the flattening of an FLT file by de-applying the flat-field that was used and instead
+        re-applying the default pipeline flat-field which only corrects for the quandrant gain values.
+        """
+        
+        f1 = os.path.join(os.environ["tref"],self.FF_file.split("$")[-1])
+        f2 = os.path.join(os.environ["iref"],self.org_FF_file.split("$")[-1])
+        with fits.open(f1) as fin:
+            FF = fin[1].data[5:1014+5,5:1014+5]
 
+        with fits.open(f2) as fin:
+            org_FF = fin[1].data[5:1014+5,5:1014+5]
+        
+        for flt_name in self.flt_names:
+            with fits.open(flt_name,mode="update") as fin:
+                fin["SCI"].data = (fin["SCI"].data)*FF / org_FF
+                fin["ERR"].data = fin["ERR"].data*FF / org_FF
+                fin["SCI"].header["PFLTFILE"] = self.org_FF_file
+
+      
+    
 
 if __name__=="__main__":
     import argparse
@@ -653,10 +675,11 @@ if __name__=="__main__":
     
     parser.add_argument('--grism',choices=['G102', 'G141', 'Both'], default='Both', help='Filters to process, G102, G141, or Both (default)')
     parser.add_argument('--ipppss', default='All')
+    parser.add_argument('--grey_flat', default=True, help='Set to False if pflat flat-fielding is not wanted for final FLT file.')
 
     args = parser.parse_args()
-    print("args:",args.files)
-
+    print("args:",args.files,args.grey_flat)
+    sys.exit(1)
     if args.grism == "Both":
         grisms  = ["G102","G141"]
     else:
@@ -669,8 +692,17 @@ if __name__=="__main__":
             continue
         if args.ipppss == 'All':
             for ipppss in list(obs_ids[grism].keys()):
-                process_obs_ids(obs_ids[grism][ipppss])
+                t = Sub_Back(obs_ids[grism][ipppss],grism)
+                t.process_obs_ids()
+                t.diagnostic_plots()
+                if not args.grey_flat:
+                    t.restore_FF()
         else:
             ipppss = args.ipppss
-            process_obs_ids(obs_ids[grism][ipppss])
+            t = Sub_Back(obs_ids[grism][ipppss],grism)
+            t.process_obs_ids()
+            t.diagnostic_plots()
+            if not args.grey_flat:
+                    t.restore_FF()
+
 
