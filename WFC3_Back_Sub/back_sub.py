@@ -119,11 +119,11 @@ def get_data(obs_id):
 
 
 class Sub_Back():
-    def __init__(self,obs_ids,grism):
+    def __init__(self,obs_ids,grism, thr=0.05):
         #ima_names = ["{}_ima.fits" for obs_id in obs_ids]
         self.obs_ids = obs_ids
         self.raw_names = ["{}_raw.fits" for obs_id in obs_ids]
-        self.thr = 0.05
+        self.thr = thr
         self.plot = True
 
         self.grism = grism
@@ -659,8 +659,6 @@ class Sub_Back():
                 if n==0:
                     label = "Zodiacal"
                 plt.axhline(zodi,label=label)        
-                bottom, top = plt.ylim() 
-                plt.ylim(bottom=-0.25,top=top)
                 label = None
                 if n==0:
                     label = "HeI"
@@ -669,6 +667,8 @@ class Sub_Back():
                 if n==0:
                     label = "Scattered"
                 plt.scatter(xs,ys2,color='r',label=label)
+                bottom, top = plt.ylim() 
+                plt.ylim(bottom=-0.25,top=top)
                 plt.legend()
         plt.grid()
         plt.xlabel("UT Time (MJD)")
