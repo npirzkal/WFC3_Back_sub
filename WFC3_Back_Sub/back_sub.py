@@ -175,6 +175,8 @@ class Sub_Back():
         self.sub_HeI_Scat()
         self.flt_names = [self.ima_to_flt("{}_ima.fits".format(x)) for x in self.obs_ids]
         [self.sub_Zodi(x) for x in self.flt_names]
+        self.log_levels()
+
 
         # Second pass
         # [self.create_msk("{}_flt.fits".format(x),thr=self.thr) for x in self.obs_ids]
@@ -190,6 +192,30 @@ class Sub_Back():
 
         return flt_names
 
+    def log_levels(self):
+        """Copy all the information from IMA into our final FLT file.
+        Keywords added are: BSAMP (number of reads), HeI_#, Scat_#, HeI_#, TIME (ROUTIME), and DTIME (IMSET exposure)"""
+        for flt_name in self.flt_names:
+            ima_name = flt_name.split("_flt.fits")[0]+"_ima.fits"
+            print(ima_name)
+            with fits.open(flt_name,mode="update") as fflt:
+                with fits.open(ima_name) as fima:
+                    extnum = fima[0].header["NSAMP"]
+                    print("Here")
+                    fflt[1].header["BSAMP"] = extnum
+                    for NSAMP in range(1,extnum):
+                        HeI = fima["SCI",NSAMP].header["HeI_{}".format(NSAMP)]
+                        Scat = fima["SCI",NSAMP].header["Scat_{}".format(NSAMP)]
+                        ROUTTIME = fima["SCI",NSAMP].header["ROUTTIME"]
+                        DELTATIM = fima["SCI",NSAMP].header["DELTATIM"]
+                        print(NSAMP,ROUTTIME,HeI,Scat)
+                        fflt[1].header["HeI_{}".format(NSAMP)] = HeI
+                        fflt[1].header["Scat_{}".format(NSAMP)] = Scat
+                        fflt[1].header["TIME_{}".format(NSAMP)] = ROUTTIME
+                        fflt[1].header["DTIME_{}".format(NSAMP)] = DELTATIM
+
+                        
+                 
     def raw_to_flt(self,raw_name):
         """
         Function to run CALWF3 on a raw dataset. CRCORR is set to OMIT and FLATCORR is set to perform.
@@ -602,6 +628,44 @@ class Sub_Back():
         fin["SCI"].header["Zodi"] = (self.Zodi,"Zodi level estimated (e-)")
         fin.close(output_verify="ignore")
 
+    def plot_levels(self):
+        """Generate a plot showing the Zodi, HeI, and Scattered light levels for each IMSET read"""
+        from astropy.io import fits
+        import matplotlib.pyplot as plt
+
+        for n,f in enumerate(self.flt_names):
+            print(f)
+            with fits.open(f) as fin:
+                h = fin["SCI",1].header
+                zodi = h["ZODI"]
+                xs = []
+                ys1 = []
+                ys2 = []
+                for i in range(1,h["BSAMP"]):
+                    TIME = h["TIME_{}".format(i)]
+                    DTIME = h["DTIME_{}".format(i)]
+                    HeI = h["HeI_{}".format(i)]
+                    Scat = h["Scat_{}".format(i)]
+                    xs.append(TIME)
+                    ys1.append(HeI)
+                    ys2.append(Scat)
+                plt.text(TIME,-.2,f[0:9])
+                if n==0:
+                    label = "Zodiacal"
+                plt.axhline(zodi,label=label)        
+                bottom, top = plt.ylim() 
+                plt.ylim(bottom=-0.25,top=top)
+                if n==0:
+                    label = "HeI"
+                plt.scatter(xs,ys1,color='g',label=label)
+                if n==0:
+                    label = "Scattered"
+                plt.scatter(xs,ys2,color='r',label=label)
+                plt.axvspan(h["TIME_{}".format(1)],h["TIME_{}".format(i)],alpha=0.2)
+        plt.grid()
+        plt.xlabel("UT Time (MJD)")
+        plt.ylabel(r'$e^-/s$')
+
     def diagnostic_plots(self):
         """
         Function to output diagnostic plots for each of the processed observations, plotting the median residuals in the
@@ -619,11 +683,14 @@ class Sub_Back():
         import scipy
         import matplotlib.pyplot as plt
 
-        plt.rcParams["figure.figsize"] = (10,2.5*len(self.obs_ids))
+        plt.rcParams["figure.figsize"] = (10,2.5*(len(self.obs_ids)+1))
         fig = plt.figure()
         plt.clf()
+        plt.subplot(len(self.obs_ids)+1,1,1)
+        self.plot_levels()
+        
         for i,obs in enumerate(self.obs_ids):
-            plt.subplot(len(self.obs_ids),1,i+1)
+            plt.subplot(len(self.obs_ids)+1,1,i+2)
             f = "{}_flt.fits".format(obs)
             d = fits.open(f)[1].data
             dq = fits.open(f)["DQ"].data
@@ -639,6 +706,7 @@ class Sub_Back():
             plt.xlim(0,1014)
             plt.ylim(-0.02,0.02)
             plt.legend()
+        plt.tight_layout()
         oname = "{}_diag.png".format(self.obs_ids[0][0:6])
         plt.savefig(oname)
         return "{}_diag.png".format(self.obs_ids[0][0:6])
