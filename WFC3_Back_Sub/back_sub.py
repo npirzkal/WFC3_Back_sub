@@ -641,15 +641,18 @@ class Sub_Back():
                 xs = []
                 ys1 = []
                 ys2 = []
-                for i in range(1,h["BSAMP"]-1):
+                for i in range(1,h["BSAMP"]):
                     TIME = h["TIME_{}".format(i)]
                     DTIME = h["DTIME_{}".format(i)]
                     STIME = TIME-DTIME/24/3600
                     HeI = h["HeI_{}".format(i)]
                     Scat = h["Scat_{}".format(i)]
-                    xs.append(TIME)
+                    xs.append(STIME)
                     ys1.append(HeI)
                     ys2.append(Scat)
+                    plt.axvspan(STIME,TIME,alpha=0.2)
+
+
                 print(xs,ys1)
                 plt.text(TIME,-.2,f[0:9])
                 label = None
@@ -666,7 +669,6 @@ class Sub_Back():
                 if n==0:
                     label = "Scattered"
                 plt.scatter(xs,ys2,color='r',label=label)
-                plt.axvspan(h["TIME_{}".format(1)]-h["DTIME_{}".format(1)]/24/3600,h["TIME_{}".format(i)],alpha=0.2)
                 plt.legend()
         plt.grid()
         plt.xlabel("UT Time (MJD)")
