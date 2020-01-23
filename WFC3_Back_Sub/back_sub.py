@@ -198,10 +198,10 @@ class Sub_Back():
         for flt_name in self.flt_names:
             ima_name = flt_name.split("_flt.fits")[0]+"_ima.fits"
             print(ima_name)
+
             with fits.open(flt_name,mode="update") as fflt:
                 with fits.open(ima_name) as fima:
                     extnum = fima[0].header["NSAMP"]
-                    print("Here")
                     fflt[1].header["BSAMP"] = extnum
                     for NSAMP in range(1,extnum):
                         HeI = fima["SCI",NSAMP].header["HeI_{}".format(NSAMP)]
@@ -641,27 +641,33 @@ class Sub_Back():
                 xs = []
                 ys1 = []
                 ys2 = []
-                for i in range(1,h["BSAMP"]):
+                for i in range(1,h["BSAMP"]-1):
                     TIME = h["TIME_{}".format(i)]
                     DTIME = h["DTIME_{}".format(i)]
+                    STIME = TIME-DTIME/24/3600
                     HeI = h["HeI_{}".format(i)]
                     Scat = h["Scat_{}".format(i)]
                     xs.append(TIME)
                     ys1.append(HeI)
                     ys2.append(Scat)
+                print(xs,ys1)
                 plt.text(TIME,-.2,f[0:9])
+                label = None
                 if n==0:
                     label = "Zodiacal"
                 plt.axhline(zodi,label=label)        
                 bottom, top = plt.ylim() 
                 plt.ylim(bottom=-0.25,top=top)
+                label = None
                 if n==0:
                     label = "HeI"
                 plt.scatter(xs,ys1,color='g',label=label)
+                label = None
                 if n==0:
                     label = "Scattered"
                 plt.scatter(xs,ys2,color='r',label=label)
-                plt.axvspan(h["TIME_{}".format(1)],h["TIME_{}".format(i)],alpha=0.2)
+                plt.axvspan(h["TIME_{}".format(1)]-h["DTIME_{}".format(1)]/24/3600,h["TIME_{}".format(i)],alpha=0.2)
+                plt.legend()
         plt.grid()
         plt.xlabel("UT Time (MJD)")
         plt.ylabel(r'$e^-/s$')
