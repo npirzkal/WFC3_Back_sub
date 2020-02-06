@@ -371,7 +371,7 @@ class Sub_Back():
         dq = np.bitwise_and(dq,np.zeros(np.shape(dq),np.int16)+ self.bit_mask)
         
         g = Gaussian1D(mean=0.,stddev=kernel_fwhm/2.35)
-
+        x = np.arange(16.)-8
         a = g(x)
         kernel = np.tile(a,(16*int(kernel_fwhm+1),1)).T
         kernel = kernel/np.sum(kernel)
