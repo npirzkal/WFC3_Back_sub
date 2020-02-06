@@ -30,14 +30,6 @@ if not "iref" in os.environ.keys():
     os.environ["iref"] = "$HOME/crds_cache/references/hst/iref/"
 os.environ["tref"] = os.path.join(module_path,"data/")
 
-#print("Will look for data in ",os.environ["tref"])
-
-
-# G102_zodi_file = os.path.join(module_path,"data/G102_Zodi_CLN6_V9_b_clean.fits")
-# G102_HeI_file = os.path.join(module_path,"data/G102_HeI_V9_b_clean.fits")
-# G102_Scatter_file = os.path.join(module_path,"data/G102_Scatter_V9_b_superclean.fits")
-
-
 def test(d):
     return d
     from skimage.restoration import (denoise_tv_chambolle, denoise_bilateral,
@@ -128,17 +120,17 @@ class Sub_Back():
 
         self.grism = grism
 
-        self.G102_zodi_file = os.path.join(module_path,"data/G102_Zodi_CLN6_V9_b_clean.fits")
-        self.G102_HeI_file = os.path.join(os.path.join(module_path,"data/G102_HeI_V9_b_clean.fits"))
+        self.G102_zodi_file = os.path.join(module_path,"data/G102_Zodi_CLN9_V10_b_superclean.fits")
+        self.G102_HeI_file = os.path.join(os.path.join(module_path,"data/G102_HeI_V9_b_superclean.fits"))
         self.G102_Scatter_file = os.path.join(os.path.join(module_path,"data/G102_Scatter_V9_b_superclean.fits"))
         self.G102_FF_file = "tref$uc72113oi_pfl_patched2.fits"
 
-        self.G141_zodi_file = os.path.join(module_path,"data/G141_Zodi_CLN6_V9_b_clean.fits")
-        self.G141_HeI_file = os.path.join(os.path.join(module_path,"data/G141_HeI_V9_b_clean.fits"))
+        self.G141_zodi_file = os.path.join(module_path,"data/G141_Zodi_CLN9_V10_b_superclean.fits")
+        self.G141_HeI_file = os.path.join(os.path.join(module_path,"data/G141_HeI_V9_b_superclean.fits"))
         self.G141_Scatter_file = os.path.join(os.path.join(module_path,"data/G141_Scatter_V9_b_superclean.fits"))
         self.G141_FF_file = "tref$uc721143i_pfl_patched2.fits"
 
-        self.bit_mask = (1+2+4+8+16+32+64+128+256+512+1024+2048+4096)
+        self.bit_mask = (1+2+4+8+16+32+64+128+256+1024+2048+4096)
 
     def load_backgrounds(self):
         if self.grism=="G102":
@@ -343,7 +335,7 @@ class Sub_Back():
 
         kernel = Gaussian2DKernel(x_stddev=1)
         segm = segm*1.
-        segm = convolve(segm, kernel)
+        #segm = convolve(segm, kernel)
         segm[segm>1e-5] = 1.
         segm[segm<=1e-5] = 0.
         segm[DQ>0] = 1.
@@ -379,7 +371,7 @@ class Sub_Back():
         dq = np.bitwise_and(dq,np.zeros(np.shape(dq),np.int16)+ self.bit_mask)
         
         g = Gaussian1D(mean=0.,stddev=kernel_fwhm/2.35)
-        x = np.arange(16.)-8
+
         a = g(x)
         kernel = np.tile(a,(16*int(kernel_fwhm+1),1)).T
         kernel = kernel/np.sum(kernel)
@@ -440,7 +432,7 @@ class Sub_Back():
             obs_id = ima_names[j][0:9]
             mask = fits.open("{}_msk.fits".format(obs_id))[0].data
             masks.append([mask for ext in range(1,nexts[j])])
-            data0s.append([test(fits.open(ima_names[j])["SCI",ext].data[5:1014+5,5:1014+5])*1 for ext in range(1,nexts[j])])
+            data0s.append([fits.open(ima_names[j])["SCI",ext].data[5:1014+5,5:1014+5]*1 for ext in range(1,nexts[j])])
             err0s.append([fits.open(ima_names[j])["ERR",ext].data[5:1014+5,5:1014+5]*1 for ext in range(1,nexts[j])])
             dq0s.append([fits.open(ima_names[j])["DQ",ext].data[5:1014+5,5:1014+5]*1 for ext in range(1,nexts[j])])
 
