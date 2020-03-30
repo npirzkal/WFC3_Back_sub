@@ -18,6 +18,5 @@ setup(
 	package_dir = {
         'WFC3_Back_Sub': 'WFC3_Back_Sub'},
     packages=['WFC3_Back_Sub',],
-    package_data={'': ['data/*.fits']
-    },
+    package_data={'': ['data/*.fits']},
 )

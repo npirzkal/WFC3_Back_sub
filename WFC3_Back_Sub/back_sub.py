@@ -30,14 +30,6 @@ if not "iref" in os.environ.keys():
     os.environ["iref"] = "$HOME/crds_cache/references/hst/iref/"
 os.environ["tref"] = os.path.join(module_path,"data/")
 
-def test(d):
-    return d
-    from skimage.restoration import (denoise_tv_chambolle, denoise_bilateral,
-                                 denoise_wavelet, estimate_sigma)
-    print("de-noising")
-    tt = denoise_tv_chambolle(d, weight=.5, multichannel=False)
-    return tt
-
 def get_visits(pattern):
     """
     A utility function to group existing files into a set of visits. 
@@ -111,23 +103,26 @@ def get_data(obs_id):
 
 
 class Sub_Back():
-    def __init__(self,obs_ids,grism, thr=0.05):
+    def __init__(self,obs_ids,grism, thr=0.05, border= 0, use_nnls=False, recompute_Zodi=False):
         #ima_names = ["{}_ima.fits" for obs_id in obs_ids]
         self.obs_ids = obs_ids
         self.raw_names = ["{}_raw.fits" for obs_id in obs_ids]
         self.thr = thr
+        self.border = border
+        self.use_nnls = use_nnls
+        self.recompute_Zodi = recompute_Zodi
         self.plot = True
 
         self.grism = grism
 
         self.G102_zodi_file = os.path.join(module_path,"data/G102_Zodi_CLN9_V10_b_clean.fits")
-        self.G102_HeI_file = os.path.join(os.path.join(module_path,"data/G102_HeI_V9_b_clean.fits"))
-        self.G102_Scatter_file = os.path.join(os.path.join(module_path,"data/G102_Scatter_V9_b_superclean.fits"))
+        self.G102_HeI_file = os.path.join(os.path.join(module_path,"data/G102_HeI_CLN9_V10_b_clean.fits"))
+        self.G102_Scatter_file = os.path.join(os.path.join(module_path,"data/G102_Scatter_CLN9_V10_b_superclean.fits"))
         self.G102_FF_file = "tref$uc72113oi_pfl_patched2.fits"
 
         self.G141_zodi_file = os.path.join(module_path,"data/G141_Zodi_CLN9_V10_b_clean.fits")
-        self.G141_HeI_file = os.path.join(os.path.join(module_path,"data/G141_HeI_V9_b_clean.fits"))
-        self.G141_Scatter_file = os.path.join(os.path.join(module_path,"data/G141_Scatter_V9_b_superclean.fits"))
+        self.G141_HeI_file = os.path.join(os.path.join(module_path,"data/G141_HeI_CLN9_V10_b_clean.fits"))
+        self.G141_Scatter_file = os.path.join(os.path.join(module_path,"data/G141_Scatter_CLN9_V10_b_superclean.fits"))
         self.G141_FF_file = "tref$uc721143i_pfl_patched2.fits"
 
         self.bit_mask = (1+2+4+8+16+32+64+128+256+1024+2048+4096)
@@ -147,7 +142,7 @@ class Sub_Back():
             self.Scatter = fits.open(self.G141_Scatter_file)[1].data
             self.FF_file = self.G141_FF_file
 
-    def process_obs_ids(self):
+    def process_obs_ids(self,backup=False):
         """
         Function to perform all the required steps to remove the time varying HeI and Scattered light component as well as the Zodi
         component from a group of WFC3 IR G102 or G141 RAW files.
@@ -161,7 +156,10 @@ class Sub_Back():
         raw_names = ["{}_raw.fits".format(x) for x in self.obs_ids]
 
         flt_names = [self.raw_to_flt(x) for x in raw_names]
-
+        if backup==True:
+            for flt_name in flt_names:
+                print("Saving orginal version of FLT {}",flt_name)
+                shutil.copy(flt_name,"{}_flt0.fits".format(flt_name.split("_flt.fits")[0]))
         [self.create_msk("{}_flt.fits".format(x),thr=self.thr) for x in self.obs_ids]
         self.Get_HeI_Zodi_Scatter_Levels()
         self.sub_HeI_Scat()
@@ -195,7 +193,7 @@ class Sub_Back():
                 with fits.open(ima_name) as fima:
                     extnum = fima[0].header["NSAMP"]
                     fflt[1].header["BSAMP"] = extnum
-                    for NSAMP in range(1,extnum):
+                    for NSAMP in range(1,extnum-1): # Ignore the first read
                         HeI = fima["SCI",NSAMP].header["HeI_{}".format(NSAMP)]
                         Scat = fima["SCI",NSAMP].header["Scat_{}".format(NSAMP)]
                         ROUTTIME = fima["SCI",NSAMP].header["ROUTTIME"]
@@ -390,7 +388,7 @@ class Sub_Back():
         
         return mask
 
-    def Get_HeI_Zodi_Scatter_Levels(self,border=0):
+    def Get_HeI_Zodi_Scatter_Levels(self):
         """
         Function to estimate the Zodi, HeI, and Scatter levels in each IMSET of an IMA file.
         A set of IMA files can be processed at once and the Zodi level is assumed to be identical in all of them. The HeI and Scatter
@@ -399,7 +397,6 @@ class Sub_Back():
         Atributes
         ---------
         ima_names List A list containing the names of IMA files to process together. 
-        border int The number of collumns to avoid on the left and right hand side of the detector (default = 0)
 
         Output
         ------
@@ -413,7 +410,7 @@ class Sub_Back():
         ima_names = ["{}_ima.fits".format(x) for x in self.obs_ids]
 
         nimas = len(ima_names)
-        nexts = [fits.open(ima_name)[-1].header["EXTVER"] for ima_name in ima_names] # We drop the last ext/1st read   
+        nexts = [fits.open(ima_name)[-1].header["EXTVER"]-1 for ima_name in ima_names] # Ignore the first read
         filt = fits.open(ima_names[0])[0].header["FILTER"]
 
         # Temp
@@ -484,9 +481,11 @@ class Sub_Back():
                 img = data0s[j][i]
                 wht = whts[j][i]
                 
-                if border>0:
-                    wht[0:border] = 0.
-                    wht[-border:0] = 0.
+                if self.border>0:
+                    wht[0:self.border] = 0.
+                    wht[-self.border:0] = 0.
+                    wht[:,0:self.border] = 0.
+                    wht[:,-self.border:0] = 0.
                     
 
                 # Populate up matrix and vector
@@ -510,13 +509,14 @@ class Sub_Back():
                 
                 m[-1,ii+nflt] = m[ii+nflt,-1]
        
+        if self.use_nnls:
+            res = optimize.nnls(m,v)
+            x = res[0]
+        else:
+            res = optimize.lsq_linear(m,v)
+            x = res.x
+
         
-        res = optimize.lsq_linear(m,v)
-        x = res.x
-
-        # res = optimize.nnls(m,v)
-        # x = res[0]
-
         
         Zodi = x[-1]
         HeIs = {}
@@ -602,21 +602,23 @@ class Sub_Back():
 
         filt = fin[0].header["FILTER"]
         
-        zodi = self.zodi*1
+        if self.recompute_Zodi:
+            d = fin["SCI"].data
+            dq0 = fin["DQ"].data
+            dq = np.bitwise_and(dq0,np.zeros(np.shape(dq0),np.int16)+ self.bit_mask) 
+
+            msk = fits.open("{}_msk.fits".format(obs_id))[0].data
+            ok = (msk==0) & (dq==0)
+            tmp = d*1.
+            tmp[~ok] = np.nan
+            zodi = np.nanmedian(tmp/self.zodi)
+            print("=================> Zodi, Scale",self.Zodi,"this scale:",zodi)
+        else:
+            zodi = self.Zodi*1
             
-        # d = fin["SCI"].data
-        # dq0 = fin["DQ"].data
-        # dq = np.bitwise_and(dq0,np.zeros(np.shape(dq0),np.int16)+ self.bit_mask) 
-
-        # msk = fits.open("{}_msk.fits".format(obs_id))[0].data
-        # ok = (msk==0) & (dq==0)
-
-        # tmp = test(d)*1.
-        # tmp[~ok] = np.nan
-        # scale = np.nanmedian(tmp/test(zodi))
-        print("Zodi, Scale",self.Zodi)
-
-        fin["SCI"].data = fin["SCI"].data - zodi*self.Zodi
+        # TEMP
+        
+        fin["SCI"].data = fin["SCI"].data - zodi*self.zodi
         fin["SCI"].header["Zodi"] = (self.Zodi,"Zodi level estimated (e-)")
         fin.close(output_verify="ignore")
 
@@ -633,7 +635,7 @@ class Sub_Back():
                 xs = []
                 ys1 = []
                 ys2 = []
-                for i in range(1,h["BSAMP"]):
+                for i in range(1,h["BSAMP"]-1): # Ignore the first read
                     TIME = h["TIME_{}".format(i)]
                     DTIME = h["DTIME_{}".format(i)]
                     STIME = TIME-DTIME/24/3600
