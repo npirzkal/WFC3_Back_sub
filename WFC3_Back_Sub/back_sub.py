@@ -193,7 +193,7 @@ class Sub_Back():
                 with fits.open(ima_name) as fima:
                     extnum = fima[0].header["NSAMP"]
                     fflt[1].header["BSAMP"] = extnum
-                    for NSAMP in range(1,extnum-1): # Ignore the first read
+                    for NSAMP in range(1,extnum):
                         HeI = fima["SCI",NSAMP].header["HeI_{}".format(NSAMP)]
                         Scat = fima["SCI",NSAMP].header["Scat_{}".format(NSAMP)]
                         ROUTTIME = fima["SCI",NSAMP].header["ROUTTIME"]
@@ -410,9 +410,9 @@ class Sub_Back():
         ima_names = ["{}_ima.fits".format(x) for x in self.obs_ids]
 
         nimas = len(ima_names)
-        nexts = [fits.open(ima_name)[-1].header["EXTVER"]-1 for ima_name in ima_names] # Ignore the first read
+        nexts = [fits.open(ima_name)[-1].header["EXTVER"] for ima_name in ima_names] # Ignore the first read
         filt = fits.open(ima_names[0])[0].header["FILTER"]
-
+        print("NEXTS:",nexts)
         # Temp
         zodi = self.zodi*1
         HeI = self.HeI*1
@@ -429,7 +429,7 @@ class Sub_Back():
             obs_id = ima_names[j][0:9]
             mask = fits.open("{}_msk.fits".format(obs_id))[0].data
             masks.append([mask for ext in range(1,nexts[j])])
-            data0s.append([fits.open(ima_names[j])["SCI",ext].data[5:1014+5,5:1014+5]*1 for ext in range(1,nexts[j])])
+            data0s.append([fits.open(ima_names[j])["SCI",ext].data[5:1014+5,5:1014+5]*1 for ext in range(1,nexts[j])]) # Ignore the first read
             err0s.append([fits.open(ima_names[j])["ERR",ext].data[5:1014+5,5:1014+5]*1 for ext in range(1,nexts[j])])
             dq0s.append([fits.open(ima_names[j])["DQ",ext].data[5:1014+5,5:1014+5]*1 for ext in range(1,nexts[j])])
 
@@ -635,7 +635,7 @@ class Sub_Back():
                 xs = []
                 ys1 = []
                 ys2 = []
-                for i in range(1,h["BSAMP"]-1): # Ignore the first read
+                for i in range(1,h["BSAMP"]): 
                     TIME = h["TIME_{}".format(i)]
                     DTIME = h["DTIME_{}".format(i)]
                     STIME = TIME-DTIME/24/3600
