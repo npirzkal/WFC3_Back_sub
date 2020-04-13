@@ -115,14 +115,14 @@ class Sub_Back():
 
         self.grism = grism
 
-        self.G102_zodi_file = os.path.join(module_path,"data/G102_Zodi_CLN9_V10_b_clean.fits")
-        self.G102_HeI_file = os.path.join(os.path.join(module_path,"data/G102_HeI_CLN9_V10_b_clean.fits"))
-        self.G102_Scatter_file = os.path.join(os.path.join(module_path,"data/G102_Scatter_CLN9_V10_b_superclean.fits"))
+        self.G102_zodi_file = os.path.join(module_path,"data/G102_Zodi_CLN9_V12_b_superscrubbed.fits")
+        self.G102_HeI_file = os.path.join(os.path.join(module_path,"data/G102_HeI_CLN9_V12_b_superscrubbed.fits"))
+        self.G102_Scatter_file = os.path.join(os.path.join(module_path,"data/G102_Scat_CLN9_V12_b_superscrubbed.fits"))
         self.G102_FF_file = "tref$uc72113oi_pfl_patched2.fits"
 
-        self.G141_zodi_file = os.path.join(module_path,"data/G141_Zodi_CLN9_V10_b_clean.fits")
-        self.G141_HeI_file = os.path.join(os.path.join(module_path,"data/G141_HeI_CLN9_V10_b_clean.fits"))
-        self.G141_Scatter_file = os.path.join(os.path.join(module_path,"data/G141_Scatter_CLN9_V10_b_superclean.fits"))
+        self.G141_zodi_file = os.path.join(module_path,"data/G141_Zodi_CLN9_V12_b_superscrubbed.fits")
+        self.G141_HeI_file = os.path.join(os.path.join(module_path,"data/G141_HeI_CLN9_V12_b_superscrubbed.fits"))
+        self.G141_Scatter_file = os.path.join(os.path.join(module_path,"data/G141_Scat_CLN9_V12_b_superscrubbed.fits"))
         self.G141_FF_file = "tref$uc721143i_pfl_patched2.fits"
 
         self.bit_mask = (1+2+4+8+16+32+64+128+256+1024+2048+4096)
