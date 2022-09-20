@@ -69,7 +69,7 @@ def get_visits(pattern):
     return dic
 
 
-def get_data(obs_id):
+def get_data(obs_id,ext="raw"):
     """
     A helper function to download a raw dataset from MAST using a direct URL
 
@@ -82,7 +82,7 @@ def get_data(obs_id):
     string containing the name of the raw file that was downloaded
     """
 
-    url = "https://mast.stsci.edu/api/v0.1/Download/file?uri=mast:HST/product/{}_raw.fits".format(obs_id)
+    url = "https://mast.stsci.edu/api/v0.1/Download/file?uri=mast:HST/product/{}_{}.fits".format(obs_id,ext)
 
     raw_name = "./{}_raw.fits".format(obs_id)
     
@@ -224,7 +224,7 @@ class Sub_Back():
         """
 
         CRCORR="OMIT"
-        FLATCORR="PERFORM"
+        FLATCORR="PERFORM" # fix? we now do it later...
 
         obs_id = raw_name.split("_raw")[0]
         
@@ -244,7 +244,6 @@ class Sub_Back():
         filt = fin[0].header["FILTER"]
 
         self.org_FF_file = fin[0].header["PFLTFILE"]
-
         fin[0].header["PFLTFILE"] = self.FF_file
     
 
@@ -265,7 +264,7 @@ class Sub_Back():
         Attributes
         ----------
         ima_name string containing the name of the IMA file to process
-
+q
         Output
         ------
         string containing the name of the FLT file that has been created
@@ -274,9 +273,11 @@ class Sub_Back():
         from wfc3tools import wf3ir
 
         CRCORR="PERFORM"
+        #FLATCORR="OMIT"
         
         fin = fits.open(ima_name,mode="update")
         fin[0].header["CRCORR"] = CRCORR
+        #fin[0].header["FLATCORR"] = FLATCORR # Fix? we do it here now since wf3ir.e crashes otherwise
         fin.close()
 
         obs_id = ima_name.split("_ima.fits")[0]
@@ -588,7 +589,7 @@ class Sub_Back():
 
         obs_id = os.path.split(flt_name)[-1][0:9]
         fin = fits.open(flt_name,mode="update")
-
+        
         try:
             val = fin["SCI"].header["Zodi"] # testing
             print("Subtracted Zodi level found in ",flt_name,"Aborting..")
@@ -601,7 +602,7 @@ class Sub_Back():
             sys.exit(1)
 
         filt = fin[0].header["FILTER"]
-        
+
         if self.recompute_Zodi:
             d = fin["SCI"].data
             dq0 = fin["DQ"].data
@@ -619,8 +620,11 @@ class Sub_Back():
         # TEMP
         
         fin["SCI"].data = fin["SCI"].data - zodi*self.zodi
+        
         fin["SCI"].header["Zodi"] = (self.Zodi,"Zodi level estimated (e-)")
         fin.close(output_verify="ignore")
+        
+        # sys.exit(1)
 
     def plot_levels(self):
         """Generate a plot showing the Zodi, HeI, and Scattered light levels for each IMSET read"""
