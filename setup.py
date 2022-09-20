@@ -19,4 +19,10 @@ setup(
         'WFC3_Back_Sub': 'WFC3_Back_Sub'},
     packages=['WFC3_Back_Sub',],
     package_data={'': ['data/*.fits']},
+    install_requires=[
+    "scipy",
+    "astropy",
+    "photutils",
+    "wfc3tools > 1.4.0"
+],
 )
