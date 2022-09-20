@@ -370,9 +370,9 @@ q
         dq = np.bitwise_and(dq,np.zeros(np.shape(dq),np.int16)+ self.bit_mask)
         
         g = Gaussian1D(mean=0.,stddev=kernel_fwhm/2.35)
-        x = np.arange(16.)-8
+        x = np.arange(17.)-8
         a = g(x)
-        kernel = np.tile(a,(16*int(kernel_fwhm+1),1)).T
+        kernel = np.tile(a,(16*int(kernel_fwhm+1)+1,1)).T
         kernel = kernel/np.sum(kernel)
 
         b = Background2D(image,background_box)
@@ -382,7 +382,7 @@ q
         
         image[dq>0] = 0. #np.nan
         
-        mask = detect_sources(image, threshold, npixels=npixels,filter_kernel=kernel).data
+        mask = detect_sources(image, threshold, npixels=npixels,kernel=kernel).data
         
         ok = (mask == 0.) & (dq==0)
         mask[~ok] = 1.
